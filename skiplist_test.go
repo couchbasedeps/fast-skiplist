@@ -4,7 +4,11 @@ import (
 	"fmt"
 	"sync"
 	"testing"
+	"time"
 	"unsafe"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 var benchList *SkipList
@@ -15,7 +19,10 @@ func init() {
 	benchList = New()
 
 	for i := 0; i <= 10000000; i++ {
-		benchList.Set(float64(i), [1]byte{})
+		_, err := benchList.Set(SkippedSequenceEntry{Start: uint64(i), End: uint64(i)})
+		if err != nil {
+			panic(fmt.Sprintf("failed to set element in skiplist: %v", err))
+		}
 	}
 
 	// Display the sizes of our basic structs
@@ -41,7 +48,7 @@ func checkSanity(list *SkipList, t *testing.T) {
 		cnt := 1
 
 		for next.next[k] != nil {
-			if !(next.next[k].key >= next.key) {
+			if !(next.next[k].key.Start >= next.key.End) {
 				t.Fatalf("next key value must be greater than prev key value. [next:%v] [prev:%v]", next.next[k].key, next.key)
 			}
 
@@ -66,67 +73,78 @@ func TestBasicIntCRUD(t *testing.T) {
 
 	list = New()
 
-	list.Set(10, 1)
-	list.Set(60, 2)
-	list.Set(30, 3)
-	list.Set(20, 4)
-	list.Set(90, 5)
+	elem, err := list.Set(SkippedSequenceEntry{Start: 10, End: 10})
+	require.NoError(t, err)
+	require.NotNil(t, elem)
+	elem, err = list.Set(SkippedSequenceEntry{Start: 60, End: 60})
+	require.NoError(t, err)
+	require.NotNil(t, elem)
+	elem, err = list.Set(SkippedSequenceEntry{Start: 30, End: 31})
+	require.NoError(t, err)
+	require.NotNil(t, elem)
+	elem, err = list.Set(SkippedSequenceEntry{Start: 20, End: 20})
+	require.NoError(t, err)
+	require.NotNil(t, elem)
+	elem, err = list.Set(SkippedSequenceEntry{Start: 90, End: 90})
+	require.NoError(t, err)
+	require.NotNil(t, elem)
 	checkSanity(list, t)
 
-	list.Set(30, 9)
+	// try set element that already exists in the list (30-31 exits so setting 30-30 should fail)
+	elem, err = list.Set(SkippedSequenceEntry{Start: 30, End: 30})
+	require.Error(t, err)
+	require.Nil(t, elem)
 	checkSanity(list, t)
 
-	list.Remove(0)
-	list.Remove(20)
+	elem, err = list.Remove(SkippedSequenceEntry{Start: 0, End: 0})
+	require.Error(t, err)
+	require.Nil(t, elem)
+	elem, err = list.Remove(SkippedSequenceEntry{Start: 20, End: 20})
+	require.NoError(t, err)
+	require.NotNil(t, elem)
 	checkSanity(list, t)
 
-	v1 := list.Get(10)
-	v2 := list.Get(60)
-	v3 := list.Get(30)
-	v4 := list.Get(20)
-	v5 := list.Get(90)
-	v6 := list.Get(0)
+	v1 := list.Get(SkippedSequenceEntry{Start: 10, End: 10})
+	v2 := list.Get(SkippedSequenceEntry{Start: 60, End: 60})
+	v3 := list.Get(SkippedSequenceEntry{Start: 30, End: 30})
+	v4 := list.Get(SkippedSequenceEntry{Start: 20, End: 20})
+	v5 := list.Get(SkippedSequenceEntry{Start: 90, End: 90})
+	v6 := list.Get(SkippedSequenceEntry{Start: 0, End: 0})
 
-	if v1 == nil || v1.value.(int) != 1 || v1.key != 10 {
-		t.Fatal(`wrong "10" value (expected "1")`, v1)
-	}
+	require.NotNil(t, v1)
+	assert.Equal(t, uint64(10), v1.key.Start)
+	assert.Equal(t, uint64(10), v1.key.End)
 
-	if v2 == nil || v2.value.(int) != 2 {
-		t.Fatal(`wrong "60" value (expected "2")`)
-	}
+	require.NotNil(t, v2)
+	assert.Equal(t, uint64(60), v2.key.Start)
+	assert.Equal(t, uint64(60), v2.key.End)
 
-	if v3 == nil || v3.value.(int) != 9 {
-		t.Fatal(`wrong "30" value (expected "9")`)
-	}
+	require.NotNil(t, v3)
+	assert.Equal(t, uint64(30), v3.key.Start)
+	assert.Equal(t, uint64(31), v3.key.End)
 
-	if v4 != nil {
-		t.Fatal(`found value for key "20", which should have been deleted`)
-	}
+	require.Nil(t, v4)
 
-	if v5 == nil || v5.value.(int) != 5 {
-		t.Fatal(`wrong "90" value`)
-	}
+	require.NotNil(t, v5)
+	assert.Equal(t, uint64(90), v5.key.Start)
+	assert.Equal(t, uint64(90), v5.key.End)
 
-	if v6 != nil {
-		t.Fatal(`found value for key "0", which should have been deleted`)
-	}
+	require.Nil(t, v6)
 }
 
 func TestChangeLevel(t *testing.T) {
-	var i float64
+	var i uint64
 	list := New()
 
-	if list.maxLevel != DefaultMaxLevel {
-		t.Fatal("max level must equal default max value")
-	}
+	assert.Equal(t, DefaultMaxLevel, list.maxLevel)
 
 	list = NewWithMaxLevel(4)
-	if list.maxLevel != 4 {
-		t.Fatal("wrong maxLevel (wanted 4)", list.maxLevel)
-	}
+	assert.Equal(t, 4, list.maxLevel)
 
 	for i = 1; i <= 201; i++ {
-		list.Set(i, i*10)
+		elem, err := list.Set(SkippedSequenceEntry{Start: i * 10, End: i * 10})
+		require.NoError(t, err)
+		require.NotNil(t, elem)
 	}
 
 	checkSanity(list, t)
@@ -135,16 +153,20 @@ func TestChangeLevel(t *testing.T) {
 		t.Fatal("wrong list length", list.Length)
 	}
 
+	seq := uint64(1)
 	for c := list.Front(); c != nil; c = c.Next() {
-		if c.key*10 != c.value.(float64) {
-			t.Fatal("wrong list element value")
-		}
+		cmp := seq * 10
+		assert.Equal(t, cmp, c.key.Start)
+		assert.Equal(t, cmp, c.key.End)
+		seq++
 	}
 }
 
 func TestMaxLevel(t *testing.T) {
 	list := NewWithMaxLevel(DefaultMaxLevel + 1)
-	list.Set(0, struct{}{})
+	elem, err := list.Set(SkippedSequenceEntry{Start: 0, End: 0})
+	require.NoError(t, err)
+	require.NotNil(t, elem)
 }
 
 func TestChangeProbability(t *testing.T) {
@@ -165,22 +187,32 @@ func TestConcurrency(t *testing.T) {
 
 	wg := &sync.WaitGroup{}
 	wg.Add(2)
+
+	elem, err := list.Set(SkippedSequenceEntry{Start: 1, End: 1})
+	require.NoError(t, err)
+	require.NotNil(t, elem)
+
 	go func() {
 		for i := 0; i < 100000; i++ {
-			list.Set(float64(i), i)
+			backSeq := list.backElem.Key().End
+			elem, setErr := list.Set(SkippedSequenceEntry{Start: backSeq + 2, End: backSeq + 3})
+			require.NoError(t, setErr)
+			require.NotNil(t, elem)
 		}
 		wg.Done()
 	}()
 
 	go func() {
 		for i := 0; i < 100000; i++ {
-			list.Get(float64(i))
+			backSeq := list.backElem.Key().End
+			list.Get(SkippedSequenceEntry{Start: backSeq + 2, End: backSeq + 3})
 		}
 		wg.Done()
 	}()
 
 	wg.Wait()
-	if list.Length != 100000 {
+	if list.Length != 100001 {
+		fmt.Println("Length after concurrent operations:", list.Length)
 		t.Fail()
 	}
 }
@@ -190,7 +222,7 @@ func BenchmarkIncSet(b *testing.B) {
 	list := New()
 
 	for i := 0; i < b.N; i++ {
-		list.Set(float64(i), [1]byte{})
+		_, _ = list.Set(SkippedSequenceEntry{Start: uint64(i), End: uint64(i)})
 	}
 
 	b.SetBytes(int64(b.N))
@@ -199,7 +231,7 @@ func BenchmarkIncSet(b *testing.B) {
 func BenchmarkIncGet(b *testing.B) {
 	b.ReportAllocs()
 	for i := 0; i < b.N; i++ {
-		res := benchList.Get(float64(i))
+		res := benchList.Get(SkippedSequenceEntry{Start: uint64(i), End: uint64(i)})
 		if res == nil {
 			b.Fatal("failed to Get an element that should exist")
 		}
@@ -213,7 +245,7 @@ func BenchmarkDecSet(b *testing.B) {
 	list := New()
 
 	for i := b.N; i > 0; i-- {
-		list.Set(float64(i), [1]byte{})
+		_, _ = list.Set(SkippedSequenceEntry{Start: uint64(i), End: uint64(i)})
 	}
 
 	b.SetBytes(int64(b.N))
@@ -222,11 +254,257 @@ func BenchmarkDecSet(b *testing.B) {
 func BenchmarkDecGet(b *testing.B) {
 	b.ReportAllocs()
 	for i := b.N; i > 0; i-- {
-		res := benchList.Get(float64(i))
+		res := benchList.Get(SkippedSequenceEntry{Start: uint64(i), End: uint64(i)})
 		if res == nil {
 			b.Fatal("failed to Get an element that should exist", i)
 		}
 	}
 
 	b.SetBytes(int64(b.N))
+}
+
+func TestRemoveSeqFromRange(t *testing.T) {
+	list := New()
+	elem, err := list.Set(SkippedSequenceEntry{Start: 1, End: 5})
+	require.NoError(t, err)
+	require.NotNil(t, elem)
+	elem, err = list.Set(SkippedSequenceEntry{Start: 8, End: 10})
+	require.NoError(t, err)
+	require.NotNil(t, elem)
+
+	// Remove a sequence from the first range
+	elem, err = list.Remove(SkippedSequenceEntry{Start: 8, End: 8})
+	require.NoError(t, err)
+	require.NotNil(t, elem)
+
+	// Check if the first range is updated correctly
+	elem = list.Get(SkippedSequenceEntry{Start: 8, End: 8})
+	require.Nil(t, elem)
+
+	elem = list.Get(SkippedSequenceEntry{Start: 9, End: 9})
+	require.NotNil(t, elem)
+	assert.Equal(t, uint64(9), elem.key.Start)
+	assert.Equal(t, uint64(10), elem.key.End)
+
+	elem, err = list.Remove(SkippedSequenceEntry{Start: 10, End: 10})
+	require.NoError(t, err)
+	require.NotNil(t, elem)
+
+	elem = list.Get(SkippedSequenceEntry{Start: 9, End: 9})
+	require.NotNil(t, elem)
+	assert.Equal(t, uint64(9), elem.key.Start)
+	assert.Equal(t, uint64(9), elem.key.End)
+
+	assert.Equal(t, 2, list.Length)
+
+	elem, err = list.Remove(SkippedSequenceEntry{Start: 9, End: 9})
+	require.NoError(t, err)
+	require.NotNil(t, elem)
+
+	assert.Equal(t, 1, list.Length)
+
+	elem, err = list.Remove(SkippedSequenceEntry{Start: 3, End: 3})
+	require.NoError(t, err)
+	require.NotNil(t, elem)
+
+	assert.Equal(t, 2, list.Length)
+
+	elem = list.Get(SkippedSequenceEntry{Start: 1, End: 1})
+	require.NotNil(t, elem)
+	assert.Equal(t, uint64(1), elem.key.Start)
+	assert.Equal(t, uint64(2), elem.key.End)
+
+	elem = list.Get(SkippedSequenceEntry{Start: 4, End: 4})
+	require.NotNil(t, elem)
+	assert.Equal(t, uint64(4), elem.key.Start)
+	assert.Equal(t, uint64(5), elem.key.End)
+
+	// try get removed item
+	elem = list.Get(SkippedSequenceEntry{Start: 3, End: 3})
+	require.Nil(t, elem)
+}
+
+func TestRemoveFromThreeRange(t *testing.T) {
+	list := New()
+	elem, err := list.Set(SkippedSequenceEntry{Start: 1, End: 3})
+	require.NoError(t, err)
+	require.NotNil(t, elem)
+
+	assert.Equal(t, 1, list.Length)
+
+	elem, err = list.Remove(SkippedSequenceEntry{Start: 2, End: 2})
+	require.NoError(t, err)
+	require.NotNil(t, elem)
+
+	elem = list.Get(SkippedSequenceEntry{Start: 1, End: 1})
+	require.NotNil(t, elem)
+	assert.Equal(t, uint64(1), elem.key.Start)
+	assert.Equal(t, uint64(1), elem.key.End)
+
+	elem = list.Get(SkippedSequenceEntry{Start: 3, End: 3})
+	require.NotNil(t, elem)
+	assert.Equal(t, uint64(3), elem.key.Start)
+	assert.Equal(t, uint64(3), elem.key.End)
+
+	elem = list.Get(SkippedSequenceEntry{Start: 2, End: 2})
+	require.Nil(t, elem)
+
+	assert.Equal(t, 2, list.Length)
+}
+
+func TestRemoveRange(t *testing.T) {
+	list := New()
+	elem, err := list.Set(SkippedSequenceEntry{Start: 1, End: 3})
+	require.NoError(t, err)
+	require.NotNil(t, elem)
+
+	elem, err = list.Remove(SkippedSequenceEntry{Start: 1, End: 3})
+	require.NoError(t, err)
+	require.NotNil(t, elem)
+
+	elem, err = list.Set(SkippedSequenceEntry{Start: 1, End: 10})
+	require.NoError(t, err)
+	require.NotNil(t, elem)
+
+	elem, err = list.Remove(SkippedSequenceEntry{Start: 1, End: 5})
+	require.NoError(t, err)
+	require.NotNil(t, elem)
+
+	elem = list.Get(SkippedSequenceEntry{Start: 8, End: 8})
+	require.NotNil(t, elem)
+	assert.Equal(t, uint64(6), elem.key.Start)
+	assert.Equal(t, uint64(10), elem.key.End)
+
+	elem = list.Get(SkippedSequenceEntry{Start: 1, End: 1})
+	require.Nil(t, elem)
+}
+
+func TestGetFrontElem(t *testing.T) {
+	list := New()
+
+	elem := list.Front()
+	if elem != nil {
+		t.Fatal("Front element should be nil")
+	}
+
+	elem, err := list.Set(SkippedSequenceEntry{Start: 1, End: 1})
+	require.NoError(t, err)
+	require.NotNil(t, elem)
+	elem, err = list.Set(SkippedSequenceEntry{Start: 2, End: 2})
+	require.NoError(t, err)
+	require.NotNil(t, elem)
+	elem, err = list.Set(SkippedSequenceEntry{Start: 3, End: 3})
+	require.NoError(t, err)
+	require.NotNil(t, elem)
+
+	elem = list.Front()
+	require.NotNil(t, elem)
+	assert.Equal(t, uint64(1), elem.key.Start)
+	assert.Equal(t, uint64(3), elem.key.End)
+}
+
+func TestRemoveRangeAcrossElements(t *testing.T) {
+	list := New()
+
+	elem, err := list.Set(SkippedSequenceEntry{Start: 1, End: 3})
+	require.NoError(t, err)
+	require.NotNil(t, elem)
+	elem, err = list.Set(SkippedSequenceEntry{Start: 5, End: 6})
+	require.NoError(t, err)
+	require.NotNil(t, elem)
+
+	assert.Equal(t, 2, list.Length)
+
+	elem, err = list.Remove(SkippedSequenceEntry{Start: 1, End: 5})
+	require.NoError(t, err)
+	require.NotNil(t, elem)
+
+	assert.Equal(t, 1, list.Length)
+	elem = list.Get(SkippedSequenceEntry{Start: 1, End: 1})
+	require.Nil(t, elem)
+
+	elem = list.Get(SkippedSequenceEntry{Start: 6, End: 6})
+	require.NotNil(t, elem)
+	assert.Equal(t, uint64(6), elem.key.Start)
+	assert.Equal(t, uint64(6), elem.key.End)
+
+	elem, err = list.Set(SkippedSequenceEntry{Start: 8, End: 8})
+	require.NoError(t, err)
+	require.NotNil(t, elem)
+	elem, err = list.Set(SkippedSequenceEntry{Start: 10, End: 10})
+	require.NoError(t, err)
+	require.NotNil(t, elem)
+
+	assert.Equal(t, 3, list.Length)
+
+	elem, err = list.Remove(SkippedSequenceEntry{Start: 6, End: 10})
+	require.NoError(t, err)
+	require.NotNil(t, elem)
+
+	elem = list.Get(SkippedSequenceEntry{Start: 8, End: 8})
+	require.Nil(t, elem)
+	elem = list.Get(SkippedSequenceEntry{Start: 10, End: 10})
+	require.Nil(t, elem)
+
+	assert.Equal(t, 0, list.Length)
+}
+
+func TestCompact(t *testing.T) {
+	list := New()
+
+	elem, err := list.Set(SkippedSequenceEntry{Start: 1, End: 3, Timestamp: time.Now().Unix() - 1000})
+	require.NoError(t, err)
+	require.NotNil(t, elem)
+	elem, err = list.Set(SkippedSequenceEntry{Start: 4, End: 6, Timestamp: time.Now().Unix() - 1000})
+	require.NoError(t, err)
+	require.NotNil(t, elem)
+
+	num := list.CompactList(time.Now().Unix(), 100)
+	assert.Equal(t, int64(6), num)
+	assert.Equal(t, 0, list.Length)
+
+	assert.Nil(t, list.backElem)
+}
+
+func TestRemovingFromLastElem(t *testing.T) {
+	list := New()
+
+	elem, err := list.Set(SkippedSequenceEntry{Start: 1, End: 3, Timestamp: 0})
+	require.NoError(t, err)
+	require.NotNil(t, elem)
+
+	assert.Equal(t, 1, list.Length)
+	assert.Equal(t, uint64(1), list.backElem.key.Start)
+	assert.Equal(t, uint64(3), list.backElem.key.End)
+
+	elem, err = list.Remove(SkippedSequenceEntry{Start: 1, End: 3})
+	require.NoError(t, err)
+	require.NotNil(t, elem)
+	assert.Equal(t, 0, list.Length)
+	assert.Nil(t, list.backElem)
+
+	// add elem back
+	elem, err = list.Set(SkippedSequenceEntry{Start: 1, End: 3, Timestamp: 0})
+	require.NoError(t, err)
+	require.NotNil(t, elem)
+
+	// remove subset
+	elem, err = list.Remove(SkippedSequenceEntry{Start: 2, End: 2})
+	require.NoError(t, err)
+	require.NotNil(t, elem)
+	assert.Equal(t, 2, list.Length)
+	assert.Equal(t, uint64(3), list.backElem.key.Start)
+	assert.Equal(t, uint64(3), list.backElem.key.End)
+}
+
+func TestRemoveItemNotInList(t *testing.T) {
+	list := New()
+
+	elem, err := list.Set(SkippedSequenceEntry{Start: 1, End: 3})
+	require.NoError(t, err)
+	require.NotNil(t, elem)
+
+	elem, err = list.Remove(SkippedSequenceEntry{Start: 4, End: 4})
+	require.Error(t, err)
+	require.Nil(t, elem, "Expected nil when removing an item not in the list")
 }
