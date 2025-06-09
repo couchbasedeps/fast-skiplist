@@ -2,6 +2,7 @@ package skiplist
 
 import (
 	"math/rand"
+	"strconv"
 	"sync"
 )
 
@@ -17,6 +18,16 @@ func (s *SkippedSequenceEntry) GetNumSequencesInEntry() int64 {
 		return 1
 	}
 	return int64(s.End - s.Start + 1)
+}
+
+// String will return a string representation of the SkippedSequenceEntry
+// Formats: Singular: "#<seq>" or ranges: "#<start>-#<end>"
+func (s *SkippedSequenceEntry) String() string {
+	seqStr := "#" + strconv.FormatUint(s.Start, 10)
+	if s.End != 0 && s.End != s.Start {
+		seqStr += "-#" + strconv.FormatUint(s.End, 10)
+	}
+	return seqStr
 }
 
 type elementNode struct {

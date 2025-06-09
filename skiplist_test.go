@@ -106,10 +106,10 @@ func TestBasicIntCRUD(t *testing.T) {
 	require.Nil(t, elem)
 	checkSanity(list, t)
 
-	elem, err = list.Remove(SkippedSequenceEntry{Start: 0, End: 0})
+	elem, _, err = list.Remove(SkippedSequenceEntry{Start: 0, End: 0})
 	require.Error(t, err)
 	require.Nil(t, elem)
-	elem, err = list.Remove(SkippedSequenceEntry{Start: 20, End: 20})
+	elem, _, err = list.Remove(SkippedSequenceEntry{Start: 20, End: 20})
 	require.NoError(t, err)
 	require.NotNil(t, elem)
 	assert.Equal(t, uint64(20), elem.key.Start)
@@ -277,6 +277,8 @@ func BenchmarkDecGet(b *testing.B) {
 
 func TestRemoveSeqFromRange(t *testing.T) {
 	list := New()
+	var numSeqs int64
+
 	elem, err := list.Set(SkippedSequenceEntry{Start: 1, End: 5})
 	require.NoError(t, err)
 	require.NotNil(t, elem)
@@ -291,9 +293,10 @@ func TestRemoveSeqFromRange(t *testing.T) {
 	assert.Equal(t, int64(8), list.GetNumSequencesInList())
 
 	// Remove a sequence from the first range
-	elem, err = list.Remove(SkippedSequenceEntry{Start: 8, End: 8})
+	elem, numSeqs, err = list.Remove(SkippedSequenceEntry{Start: 8, End: 8})
 	require.NoError(t, err)
 	require.NotNil(t, elem)
+	assert.Equal(t, int64(7), numSeqs)
 	assert.Equal(t, uint64(8), elem.key.Start)
 	assert.Equal(t, uint64(8), elem.key.End)
 
@@ -308,9 +311,10 @@ func TestRemoveSeqFromRange(t *testing.T) {
 	assert.Equal(t, uint64(9), elem.key.Start)
 	assert.Equal(t, uint64(10), elem.key.End)
 
-	elem, err = list.Remove(SkippedSequenceEntry{Start: 10, End: 10})
+	elem, numSeqs, err = list.Remove(SkippedSequenceEntry{Start: 10, End: 10})
 	require.NoError(t, err)
 	require.NotNil(t, elem)
+	assert.Equal(t, int64(6), numSeqs)
 	assert.Equal(t, uint64(10), elem.key.Start)
 	assert.Equal(t, uint64(10), elem.key.End)
 
@@ -323,18 +327,20 @@ func TestRemoveSeqFromRange(t *testing.T) {
 
 	assert.Equal(t, 2, list.GetLength())
 
-	elem, err = list.Remove(SkippedSequenceEntry{Start: 9, End: 9})
+	elem, numSeqs, err = list.Remove(SkippedSequenceEntry{Start: 9, End: 9})
 	require.NoError(t, err)
 	require.NotNil(t, elem)
+	assert.Equal(t, int64(5), numSeqs)
 	assert.Equal(t, uint64(9), elem.key.Start)
 	assert.Equal(t, uint64(9), elem.key.End)
 
 	assert.Equal(t, 1, list.GetLength())
 	assert.Equal(t, int64(5), list.GetNumSequencesInList())
 
-	elem, err = list.Remove(SkippedSequenceEntry{Start: 3, End: 3})
+	elem, numSeqs, err = list.Remove(SkippedSequenceEntry{Start: 3, End: 3})
 	require.NoError(t, err)
 	require.NotNil(t, elem)
+	assert.Equal(t, int64(4), numSeqs)
 	assert.Equal(t, uint64(3), elem.key.Start)
 	assert.Equal(t, uint64(3), elem.key.End)
 
@@ -358,6 +364,8 @@ func TestRemoveSeqFromRange(t *testing.T) {
 
 func TestRemoveFromThreeRange(t *testing.T) {
 	list := New()
+	var numSeqs int64
+
 	elem, err := list.Set(SkippedSequenceEntry{Start: 1, End: 3})
 	require.NoError(t, err)
 	require.NotNil(t, elem)
@@ -367,9 +375,10 @@ func TestRemoveFromThreeRange(t *testing.T) {
 	assert.Equal(t, 1, list.GetLength())
 	assert.Equal(t, int64(3), list.GetNumSequencesInList())
 
-	elem, err = list.Remove(SkippedSequenceEntry{Start: 2, End: 2})
+	elem, numSeqs, err = list.Remove(SkippedSequenceEntry{Start: 2, End: 2})
 	require.NoError(t, err)
 	require.NotNil(t, elem)
+	assert.Equal(t, int64(2), numSeqs)
 	assert.Equal(t, uint64(2), elem.key.Start)
 	assert.Equal(t, uint64(2), elem.key.End)
 	assert.Equal(t, int64(2), list.GetNumSequencesInList())
@@ -392,6 +401,8 @@ func TestRemoveFromThreeRange(t *testing.T) {
 
 func TestRemoveRange(t *testing.T) {
 	list := New()
+	var numSeqs int64
+
 	elem, err := list.Set(SkippedSequenceEntry{Start: 1, End: 3})
 	require.NoError(t, err)
 	require.NotNil(t, elem)
@@ -399,9 +410,10 @@ func TestRemoveRange(t *testing.T) {
 	assert.Equal(t, uint64(3), elem.key.End)
 	assert.Equal(t, int64(3), list.GetNumSequencesInList())
 
-	elem, err = list.Remove(SkippedSequenceEntry{Start: 1, End: 3})
+	elem, numSeqs, err = list.Remove(SkippedSequenceEntry{Start: 1, End: 3})
 	require.NoError(t, err)
 	require.NotNil(t, elem)
+	assert.Equal(t, int64(0), numSeqs)
 	assert.Equal(t, uint64(1), elem.key.Start)
 	assert.Equal(t, uint64(3), elem.key.End)
 	assert.Equal(t, int64(0), list.GetNumSequencesInList())
@@ -413,9 +425,10 @@ func TestRemoveRange(t *testing.T) {
 	assert.Equal(t, uint64(10), elem.key.End)
 	assert.Equal(t, int64(10), list.GetNumSequencesInList())
 
-	elem, err = list.Remove(SkippedSequenceEntry{Start: 1, End: 5})
+	elem, numSeqs, err = list.Remove(SkippedSequenceEntry{Start: 1, End: 5})
 	require.NoError(t, err)
 	require.NotNil(t, elem)
+	assert.Equal(t, int64(5), numSeqs)
 	assert.Equal(t, uint64(1), elem.key.Start)
 	assert.Equal(t, uint64(5), elem.key.End)
 	assert.Equal(t, int64(5), list.GetNumSequencesInList())
@@ -462,6 +475,7 @@ func TestGetFrontElem(t *testing.T) {
 
 func TestRemoveRangeAcrossElements(t *testing.T) {
 	list := New()
+	var numSeqs int64
 
 	elem, err := list.Set(SkippedSequenceEntry{Start: 1, End: 3})
 	require.NoError(t, err)
@@ -477,9 +491,10 @@ func TestRemoveRangeAcrossElements(t *testing.T) {
 	assert.Equal(t, 2, list.GetLength())
 	assert.Equal(t, int64(5), list.GetNumSequencesInList())
 
-	elem, err = list.Remove(SkippedSequenceEntry{Start: 1, End: 5})
+	elem, numSeqs, err = list.Remove(SkippedSequenceEntry{Start: 1, End: 5})
 	require.NoError(t, err)
 	require.NotNil(t, elem)
+	assert.Equal(t, int64(1), numSeqs)
 
 	assert.Equal(t, 1, list.GetLength())
 	assert.Equal(t, int64(1), list.GetNumSequencesInList())
@@ -502,9 +517,10 @@ func TestRemoveRangeAcrossElements(t *testing.T) {
 	assert.Equal(t, 3, list.GetLength())
 	assert.Equal(t, int64(3), list.GetNumSequencesInList())
 
-	elem, err = list.Remove(SkippedSequenceEntry{Start: 6, End: 10})
+	elem, numSeqs, err = list.Remove(SkippedSequenceEntry{Start: 6, End: 10})
 	require.NoError(t, err)
 	require.NotNil(t, elem)
+	assert.Equal(t, int64(0), numSeqs)
 
 	elem = list.Get(SkippedSequenceEntry{Start: 8, End: 8})
 	require.Nil(t, elem)
@@ -521,9 +537,10 @@ func TestRemoveRangeAcrossElements(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, elem)
 
-	elem, err = list.Remove(SkippedSequenceEntry{Start: 2, End: 6})
+	elem, numSeqs, err = list.Remove(SkippedSequenceEntry{Start: 2, End: 6})
 	require.NoError(t, err)
 	require.NotNil(t, elem)
+	assert.Equal(t, int64(1), numSeqs)
 
 	assert.Equal(t, 1, list.GetLength())
 	assert.Equal(t, int64(1), list.GetNumSequencesInList())
@@ -539,21 +556,24 @@ func TestCompact(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, elem)
 
-	num := list.CompactList(time.Now().Unix(), 100)
+	_, num, numSeqsLeft := list.CompactList(time.Now().Unix(), 100)
 	assert.Equal(t, int64(6), num)
+	assert.Equal(t, int64(0), numSeqsLeft)
 	assert.Equal(t, 0, list.GetLength())
 	assert.Equal(t, int64(0), list.GetNumSequencesInList())
 
 	assert.Nil(t, list.backElem)
 
-	num = list.CompactList(time.Now().Unix(), 100)
+	_, num, numSeqsLeft = list.CompactList(time.Now().Unix(), 100)
 	assert.Equal(t, int64(0), num)
+	assert.Equal(t, int64(0), numSeqsLeft)
 	assert.Equal(t, 0, list.GetLength())
 	assert.Equal(t, int64(0), list.GetNumSequencesInList())
 }
 
 func TestRemovingFromLastElem(t *testing.T) {
 	list := New()
+	var numSeqs int64
 
 	elem, err := list.Set(SkippedSequenceEntry{Start: 1, End: 3, Timestamp: 0})
 	require.NoError(t, err)
@@ -566,9 +586,10 @@ func TestRemovingFromLastElem(t *testing.T) {
 	assert.Equal(t, uint64(3), list.backElem.key.End)
 	assert.Equal(t, int64(3), list.GetNumSequencesInList())
 
-	elem, err = list.Remove(SkippedSequenceEntry{Start: 1, End: 3})
+	elem, numSeqs, err = list.Remove(SkippedSequenceEntry{Start: 1, End: 3})
 	require.NoError(t, err)
 	require.NotNil(t, elem)
+	assert.Equal(t, int64(0), numSeqs)
 	assert.Equal(t, uint64(1), elem.key.Start)
 	assert.Equal(t, uint64(3), elem.key.End)
 	assert.Equal(t, 0, list.GetLength())
@@ -585,12 +606,14 @@ func TestRemovingFromLastElem(t *testing.T) {
 	assert.Equal(t, uint64(3), elem.key.End)
 
 	// remove subset
-	elem, err = list.Remove(SkippedSequenceEntry{Start: 2, End: 2})
+	elem, numSeqs, err = list.Remove(SkippedSequenceEntry{Start: 2, End: 2})
 	require.NoError(t, err)
 	require.NotNil(t, elem)
+	assert.Equal(t, int64(2), numSeqs)
 	assert.Equal(t, uint64(2), elem.key.Start)
 	assert.Equal(t, uint64(2), elem.key.End)
 	assert.Equal(t, 2, list.GetLength())
+
 	assert.Equal(t, uint64(3), list.backElem.key.Start)
 	assert.Equal(t, uint64(3), list.backElem.key.End)
 	assert.Equal(t, int64(2), list.GetNumSequencesInList())
@@ -598,12 +621,14 @@ func TestRemovingFromLastElem(t *testing.T) {
 
 func TestRemoveItemNotInList(t *testing.T) {
 	list := New()
+	var numSeqs int64
 
 	// remove item form empty list
-	elem, err := list.Remove(SkippedSequenceEntry{Start: 1, End: 1})
+	elem, numSeqs, err := list.Remove(SkippedSequenceEntry{Start: 1, End: 1})
 	require.Error(t, err)
 	assert.ErrorContains(t, err, "skiplist empty")
 	require.Nil(t, elem, "Expected nil when removing from an empty list")
+	assert.Equal(t, int64(0), numSeqs)
 
 	elem, err = list.Set(SkippedSequenceEntry{Start: 1, End: 3})
 	require.NoError(t, err)
@@ -611,7 +636,8 @@ func TestRemoveItemNotInList(t *testing.T) {
 	assert.Equal(t, uint64(1), elem.key.Start)
 	assert.Equal(t, uint64(3), elem.key.End)
 
-	elem, err = list.Remove(SkippedSequenceEntry{Start: 4, End: 4})
+	elem, numSeqs, err = list.Remove(SkippedSequenceEntry{Start: 4, End: 4})
 	require.Error(t, err)
 	require.Nil(t, elem, "Expected nil when removing an item not in the list")
+	assert.Equal(t, int64(3), numSeqs)
 }

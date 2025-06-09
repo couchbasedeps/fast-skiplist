@@ -128,13 +128,14 @@ func (list *SkipList) Get(key SkippedSequenceEntry) *Element {
 
 // Remove deletes an element from the list.
 // Returns removed element pointer if found, nil if not found.
-func (list *SkipList) Remove(key SkippedSequenceEntry) (*Element, error) {
+// Also returns the number of sequences left in list and an error if the element was not found.
+func (list *SkipList) Remove(key SkippedSequenceEntry) (*Element, int64, error) {
 	list.mutex.Lock()
 	defer list.mutex.Unlock()
 
 	if list.Length == 0 {
 		// list is empty, nothing to remove
-		return nil, fmt.Errorf("skiplist empty, cannot remove element")
+		return nil, 0, fmt.Errorf("skiplist empty, cannot remove element")
 	}
 
 	prevs := list.getPrevElementNodes(key)
@@ -152,20 +153,20 @@ func (list *SkipList) Remove(key SkippedSequenceEntry) (*Element, error) {
 				list.backElem = nil
 			}
 			// return removed element
-			return element, nil
+			return element, list.NumSequencesInList, nil
 		}
 		// subset of element to remove/split
 		if key.Start == element.key.Start {
 			element.key.Start = key.End + 1
 			list.NumSequencesInList -= key.GetNumSequencesInEntry()
 			// return range we have removed (incoming key)
-			return &Element{key: key}, nil
+			return &Element{key: key}, list.NumSequencesInList, nil
 		}
 		if key.End == element.key.End {
 			element.key.End = key.Start - 1
 			list.NumSequencesInList -= key.GetNumSequencesInEntry()
 			// return range we have removed (incoming key)
-			return &Element{key: key}, nil
+			return &Element{key: key}, list.NumSequencesInList, nil
 		}
 		// need to split current element around incoming key so generate new element that will be inserted + modify current element range
 		newEntryKey := SkippedSequenceEntry{Start: key.End + 1, End: element.key.End, Timestamp: element.key.Timestamp}
@@ -177,7 +178,7 @@ func (list *SkipList) Remove(key SkippedSequenceEntry) (*Element, error) {
 		list.NumSequencesInList -= key.GetNumSequencesInEntry()
 
 		// return range we have removed (incoming key)
-		return &Element{key: key}, nil
+		return &Element{key: key}, list.NumSequencesInList, nil
 	} else if element != nil {
 		// if we are removing a range that spans multiple elements, we will iterate through the list
 		// removing elements as we need
@@ -212,11 +213,11 @@ func (list *SkipList) Remove(key SkippedSequenceEntry) (*Element, error) {
 		}
 		if removedSeqs {
 			// return range we have removed (incoming key)
-			return &Element{key: key}, nil
+			return &Element{key: key}, list.NumSequencesInList, nil
 		}
 	}
 
-	return nil, fmt.Errorf("element with key: %v not found in skiplist", key)
+	return nil, list.NumSequencesInList, fmt.Errorf("element with key: %v not found in skiplist", key)
 }
 
 // _remove is private function that removes a range from the list. This differs from Remove as it doesn't acquire mutex
@@ -340,17 +341,19 @@ func New() *SkipList {
 	return NewWithMaxLevel(DefaultMaxLevel)
 }
 
-// CompactList compacts the skiplist by removing elements that are older than maxWait and returns number of sequences compacted
-func (list *SkipList) CompactList(timeNow, maxWait int64) int64 {
+// CompactList compacts the skiplist by removing elements that are older than maxWait.
+// Returns number of sequences compacted and number of sequences left in list
+func (list *SkipList) CompactList(timeNow, maxWait int64) ([]SkippedSequenceEntry, int64, int64) {
 	list.mutex.Lock()
 	defer list.mutex.Unlock()
 
 	if list.Length == 0 {
 		// list is empty, nothing to compact
-		return 0
+		return nil, 0, 0
 	}
 
 	numCompacted := int64(0)
+	var compactedEntries []SkippedSequenceEntry
 	// iterate through bottom linked list to find elements that are older than maxWait
 	for c := list._front(); c != nil; c = c.Next() {
 		if (timeNow - c.key.Timestamp) >= maxWait {
@@ -365,9 +368,11 @@ func (list *SkipList) CompactList(timeNow, maxWait int64) int64 {
 			if c == list.backElem {
 				list.backElem = nil
 			}
+			// add to compacted entries
+			compactedEntries = append(compactedEntries, c.key)
 		}
 	}
 	// decrement the number of sequences in the list by the number of compacted sequences
 	list.NumSequencesInList -= numCompacted
-	return numCompacted
+	return compactedEntries, numCompacted, list.NumSequencesInList
 }
