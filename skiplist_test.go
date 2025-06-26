@@ -641,3 +641,29 @@ func TestRemoveItemNotInList(t *testing.T) {
 	require.Nil(t, elem, "Expected nil when removing an item not in the list")
 	assert.Equal(t, int64(3), numSeqs)
 }
+
+func BenchmarkSkiplistSizeLevel(b *testing.B) {
+	const levelMin, levelMax = 8, 20
+	sizes := []int{1000, 10_000, 100_000, 1_000_000, 10_000_000, 100_000_000, 1_000_000_000}
+	for _, size := range sizes {
+		b.Run(fmt.Sprintf("size=%d", size), func(b *testing.B) {
+			for level := levelMin; level <= levelMax; level++ {
+				b.Run(fmt.Sprintf("level=%d", level), func(b *testing.B) {
+					list := NewWithMaxLevel(level)
+					elements := make([]SkippedSequenceEntry, 0, size)
+					for i := 0; i < size; i++ {
+						e := SkippedSequenceEntry{Start: uint64(i), End: uint64(i), Timestamp: 1234}
+						elements = append(elements, e)
+						_, _ = list.Set(e)
+					}
+					// fetch each element sequentially to average out the cost of Get()
+					for b.Loop() {
+						for _, e := range elements {
+							list.Get(e)
+						}
+					}
+				})
+			}
+		})
+	}
+}
