@@ -642,6 +642,38 @@ func TestRemoveItemNotInList(t *testing.T) {
 	assert.Equal(t, int64(3), numSeqs)
 }
 
+func TestGetFrontKey(t *testing.T) {
+	list := New()
+
+	key := list.FrontKey()
+	assert.Equal(t, uint64(0), key.Start)
+	assert.Equal(t, uint64(0), key.End)
+	assert.Equal(t, int64(0), key.Timestamp)
+
+	// fill list with some elements
+	uinxStamp := time.Now().Unix()
+	_, err := list.Set(SkippedSequenceEntry{Start: 1, End: 3, Timestamp: uinxStamp})
+	require.NoError(t, err)
+	_, err = list.Set(SkippedSequenceEntry{Start: 5, End: 7, Timestamp: uinxStamp + 1})
+	require.NoError(t, err)
+
+	// assert on front key
+	key = list.FrontKey()
+	assert.Equal(t, uint64(1), key.Start)
+	assert.Equal(t, uint64(3), key.End)
+	assert.Equal(t, uinxStamp, key.Timestamp)
+
+	// remove front element and check the new front key
+	_, _, err = list.Remove(SkippedSequenceEntry{Start: 1, End: 3})
+	require.NoError(t, err)
+
+	key = list.FrontKey()
+	assert.Equal(t, uint64(5), key.Start)
+	assert.Equal(t, uint64(7), key.End)
+	assert.Equal(t, uinxStamp+1, key.Timestamp)
+
+}
+
 func BenchmarkSkiplistSizeLevel(b *testing.B) {
 	const levelMin, levelMax = 8, 20
 	sizes := []int{1000, 10_000, 100_000, 1_000_000, 10_000_000, 100_000_000, 1_000_000_000}

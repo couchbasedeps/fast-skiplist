@@ -20,6 +20,17 @@ func (list *SkipList) Front() *Element {
 	return list.next[0]
 }
 
+// FrontKey returns the key of the head node of the list.
+func (list *SkipList) FrontKey() SkippedSequenceEntry {
+	list.mutex.RLock()
+	defer list.mutex.RUnlock()
+
+	if list.next[0] == nil {
+		return SkippedSequenceEntry{}
+	}
+	return list.next[0].key
+}
+
 // Front returns the head node of the list without acquiring mutex.
 func (list *SkipList) _front() *Element {
 	return list.next[0]
